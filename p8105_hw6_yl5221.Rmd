@@ -85,7 +85,7 @@ homicide_df %>%
 
 
 ## Problem 3
-There's no na in the data set. I converted baby sex, female and male races to factor variables, inches to centimeters, and grams to pounds.
+There's no na in the data set. I converted baby sex, malform, female and male races to factor variables.
 ```{r,results='hide'}
 birthwt_df =
   read_csv("./data/birthweight.csv") %>%
@@ -132,5 +132,43 @@ modelr::add_residuals(birthwt_df, model_1) %>%
   ggplot(aes(x = bwt, y = resid)) +
   geom_point(alpha = .3)
 ```
+Add Two Models 
+```{r}
+model_2 = lm(bwt ~ blength + gaweeks, data = birthwt_df)
+model_3 = lm(bwt ~ babysex + bhead + blength + babysex*bhead + babysex*blength + blength*bhead + babysex*blength*bhead, data = birthwt_df)
+```
 
+Generate Cross Validation df
+```{r}
+cv_df = 
+  crossv_mc(birthwt_df, 100) %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
+```
+
+As the boxplot shows, the first regression model lm(bwt ~ bhead + blength + wtgain) has the smallest rmse mean. Thus, we will choose the 1st regression model among three models.
+```{r}
+cv_df %>% 
+  mutate(
+    fits_1 = map(.x = train, ~lm(bwt ~ bhead + blength + wtgain, data = .x)),
+    fits_2 = map(.x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    fits_3 = map(.x = train, ~lm(bwt~ babysex + bhead + blength + babysex*bhead + babysex*blength + blength*bhead + babysex*blength*bhead, data = .x))
+  ) %>% 
+  mutate(
+    rmse_1 = map2_dbl(.x = fits_1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_2 = map2_dbl(.x = fits_2, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_3 = map2_dbl(.x = fits_3, .y = test, ~rmse(model = .x, data = .y))
+  ) %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_boxplot()
+```
 
