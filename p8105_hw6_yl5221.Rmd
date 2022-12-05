@@ -99,7 +99,7 @@ homicide_df =
     status = if_else(disposition == "Closed without arrest" | disposition == "Open/No arrest", "unresolved", "resolved"),
     status_numeric = if_else(status == "unresolved", 0, 1)
   ) %>% 
-  filter(city_state != "Dallas, TX" & city_state != "Phoenix, AZ" & city_state != "Kansas City, MO" & city_state != "Tusla, AL") %>% 
+  filter(city_state != "Dallas, TX" & city_state != "Phoenix, AZ" & city_state != "Kansas City, MO" & city_state != "Tulsa, AL") %>% 
   filter(victim_race == "White" | victim_race == "Black")
 ```
 
@@ -129,9 +129,11 @@ Baltimore_reg %>%
   knitr::kable(digits = 3)
 ```
 
-### Regression for Each City ? 
+### Regression for Each City 
 
-
+Regression for each city, the adjusted odds ratio (and CI) for solving homicides comparing male victims to female victims
+```{r}
+cities_df =
 homicide_df %>% 
   drop_na(victim_age, victim_race, victim_sex) %>% 
   nest(df = -city_state) %>% 
@@ -139,10 +141,24 @@ homicide_df %>%
     models = map(.x = df, ~glm(status_numeric ~ victim_race + victim_age + victim_sex, data = .x, family = binomial())),
     results = map(models, broom::tidy)
     ) %>% 
-  mutate(OR = exp(estimate),
+  select(city_state, results) %>% 
+  unnest(results) %>% 
+   mutate(OR = exp(estimate),
          lower_CI = exp(estimate - (1.96 * std.error)),
          upper_CI = exp(estimate + (1.96 * std.error))) %>%
-  select(city_state, term, OR, lower_CI, upper_CI)
+  select(city_state, term, OR, lower_CI, upper_CI) %>% 
+  filter(term == "victim_sexMale")
+
+cities_df
+```
+
+New York has the smallest odds ratio and Albuquerque has the largest odds ratio. For cities with odds ratio less than 1, the case is more likely to be resolved when victim is female. For cities with odds ratio more than 1, the case is more likely to be resolved when victim is male.
+```{r}
+cities_df %>% 
+  mutate(city_state = fct_reorder(city_state, OR)) %>% 
+  ggplot(aes(x = city_state, y = OR)) + geom_point() + geom_errorbar(aes(ymin = lower_CI, ymax = upper_CI), position = "dodge", width = 0.25) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + labs(x = "City and State",y = "Odds Ratio and CI",title = "Odds Ratio Across Cities") 
+```
+
 
 
 ## Problem 3
